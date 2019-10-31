@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blue,
       ),
       home: MyHomePage(title: 'Flutter Demo Home Page'),
@@ -27,16 +21,6 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -44,68 +28,131 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  Future<List<User>> _getUsers() async {
+    /*
+      Here is the code for https://json.generator.com:
+      
+      [
+        '{{repeat(50)}}',
+        {
+          index:'{{index(0)}}',
+          about:'Vivamus magna justo, lacinia eget consectetur sed, convallis at tellus. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Donec velit neque, auctor sit amet aliquam vel, ullamcorper sit amet ligula. Quisque velit nisi, pretium ut lacinia in, elementum id enim. Sed porttitor lectus nibh. Vivamus magna justo, lacinia eget consectetur sed, convallis at tellus.',
+          email:'{{email([random])}}',
+          name:'{{firstName()}} {{surname()}}',
+          picture:'https://randomuser.me/api/portraits/men/{{index(0)}}.jpg'
+        }
+      ]
+    */
+    var data = await http
+        .get('http://www.json-generator.com/api/json/get/ceDTBYcMEi?indent=2');
+    var jsonData = json.decode(data.body);
+    List<User> users = [];
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+    for (var u in jsonData) {
+      User user = User(
+        u["index"],
+        u["about"],
+        u["name"],
+        u["email"],
+        u["picture"],
+      );
+
+      users.add(user);
+    }
+    return users;
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.display1,
-            ),
-          ],
+      body: Container(
+        child: FutureBuilder(
+          future: _getUsers(),
+          builder: (BuildContext context, snapshot) {
+            if (snapshot.data == null) {
+              return Container(
+                child: Center(
+                  child: Text('Loading...'),
+                ),
+              );
+            } else {
+              return ListView.builder(
+                itemCount: snapshot.data.length,
+                itemBuilder: (BuildContext context, int index) {
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage:
+                          NetworkImage(snapshot.data[index].picture),
+                    ),
+                    title: Text(snapshot.data[index].name),
+                    subtitle: Text(snapshot.data[index].email),
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  new DetailsPage(snapshot.data[index])));
+                    },
+                  );
+                },
+              );
+            }
+          },
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
+}
+
+class DetailsPage extends StatelessWidget {
+  final User user;
+
+  DetailsPage(this.user);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(user.name),
+      ),
+      body: Column(
+        children: <Widget>[
+          Center(
+            child: ClipRRect(
+              borderRadius: new BorderRadius.circular(50.0),
+              child: Image.network(user.picture, height: 100.00, width: 100.00),
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.symmetric(horizontal: 10.00),
+            child: Column(
+              children: <Widget>[
+                Text(
+                  user.name,
+                  style: TextStyle(
+                    fontSize: 26,
+                  ),
+                ),
+                Text(user.email),
+                Text(user.about)
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class User {
+  final int index;
+  final String about;
+  final String name;
+  final String email;
+  final String picture;
+
+  User(this.index, this.about, this.name, this.email, this.picture);
 }
